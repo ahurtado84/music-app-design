@@ -44,6 +44,8 @@
             flex: 1;
             overflow-y: auto;
             padding: 10px;
+            display: none;
+            padding-bottom: 60px; /* Ensure space for the bottom toolbar */
         }
 
         .playlist, .track, .search-item {
@@ -72,6 +74,10 @@
             align-items: center;
             padding: 10px 0;
             background-color: #181818;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            z-index: 10;
         }
 
         .bottom-toolbar button {
@@ -93,6 +99,9 @@
             padding: 10px;
             border-radius: 8px;
             margin-bottom: 10px;
+            position: sticky;
+            top: 0;
+            z-index: 2;
         }
 
         .search-box input {
@@ -132,6 +141,14 @@
         .menu-item:hover {
             background-color: #1DB954;
         }
+
+        #playlists-tab, #search-tab, #playing-tab {
+            display: none;
+        }
+
+        #playlists-tab.active, #search-tab.active, #playing-tab.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -153,9 +170,23 @@
         </video>
     </div>
 
-    <!-- Main Container -->
-    <div class="main-container" id="main-container">
-        <!-- Dynamic content will go here -->
+    <!-- Main Tabs -->
+    <div id="playlists-tab" class="main-container active">
+        <!-- Playlists content -->
+    </div>
+
+    <div id="search-tab" class="main-container">
+        <div class="search-box">
+            <input type="text" placeholder="Search..." id="search-input">
+            <button id="search-btn-icon">🔍</button>
+        </div>
+        <div>
+            <!-- Search results will go here -->
+        </div>
+    </div>
+
+    <div id="playing-tab" class="main-container">
+        <!-- Tracks content -->
     </div>
 
     <!-- Bottom Toolbar -->
@@ -167,139 +198,81 @@
     </div>
 
     <script>
-        const mainContainer = document.getElementById('main-container');
+        const playlistsTab = document.getElementById('playlists-tab');
+        const searchTab = document.getElementById('search-tab');
+        const playingTab = document.getElementById('playing-tab');
+
         const playlistsBtn = document.getElementById('playlists-btn');
         const searchBtn = document.getElementById('search-btn');
         const playingBtn = document.getElementById('playing-btn');
-        const adminBtn = document.getElementById('admin-btn');
-
-        const tabs = {
-            playlists: Array.from({ length: 20 }, (_, i) => ({
-                name: `Playlist ${i + 1}`,
-                description: `Description for playlist ${i + 1}`,
-                logo: `playlist${(i % 5) + 1}.png`
-            })),
-            search: Array.from({ length: 10 }, (_, i) => ({
-                name: `Search Result ${i + 1}`,
-                artist: `Artist ${i + 1}`,
-                thumbnail: `result${(i % 5) + 1}.png`
-            })),
-            playing: []
-        };
-
-        let activeMenu = null;
-        let currentPlaylist = null;
-
-        function loadPlaylists() {
-            mainContainer.innerHTML = '';
-            tabs.playlists.forEach(playlist => {
-                const div = document.createElement('div');
-                div.className = 'playlist';
-                div.innerHTML = `<img src="${playlist.logo}" alt="Playlist"> <div><h4>${playlist.name}</h4><p>${playlist.description}</p></div>`;
-                div.addEventListener('click', () => {
-                    loadPlaying(playlist);
-                });
-                mainContainer.appendChild(div);
-            });
-        }
-
-        function loadSearch() {
-            mainContainer.innerHTML = '';
-            const searchBox = document.createElement('div');
-            searchBox.className = 'search-box';
-            searchBox.innerHTML = `
-                <input type="text" placeholder="Search..." id="search-input">
-                <button id="search-btn-icon">🔍</button>
-            `;
-            mainContainer.appendChild(searchBox);
-
-            const resultsContainer = document.createElement('div');
-            tabs.search.forEach(result => {
-                const div = document.createElement('div');
-                div.className = 'search-item';
-                div.innerHTML = `<img src="${result.thumbnail}" alt="Result"> <div><h4>${result.name}</h4><p>${result.artist}</p></div>`;
-                resultsContainer.appendChild(div);
-            });
-            mainContainer.appendChild(resultsContainer);
-        }
-
-        function loadPlaying(playlist) {
-            currentPlaylist = playlist;
-            mainContainer.innerHTML = '';
-            playlist.tracks = Array.from({ length: 20 }, (_, i) => ({
-                name: `Track ${i + 1}`,
-                artist: `Artist ${i + 1}`,
-                thumbnail: `track${(i % 5) + 1}.png`,
-                file: `track${(i % 5) + 1}.mp4`
-            }));
-            const firstTrack = playlist.tracks[0];
-            document.getElementById('video-player').src = firstTrack.file;
-
-            playlist.tracks.forEach(track => {
-                const div = document.createElement('div');
-                div.className = 'track';
-                div.innerHTML = `<img src="${track.thumbnail}" alt="Track"> 
-                                <div><h4>${track.name}</h4><p>${track.artist}</p></div>
-                                <div class="menu-icon">⋮</div>`;
-                div.addEventListener('click', (e) => {
-                    if (e.target.classList.contains('menu-icon')) {
-                        showMenu(e.target, track);
-                        e.stopPropagation();
-                    } else {
-                        document.getElementById('video-player').src = track.file;
-                    }
-                });
-                mainContainer.appendChild(div);
-            });
-        }
-
-        function reloadPlaying() {
-            if (currentPlaylist) {
-                loadPlaying(currentPlaylist);
-            }
-        }
-
-        function showMenu(target, track) {
-            if (activeMenu) activeMenu.remove();
-
-            const menu = document.createElement('div');
-            menu.className = 'menu';
-            menu.innerHTML = `
-                <div class="menu-item">Remove from playlist</div>
-                <div class="menu-item">Add to playlist</div>
-            `;
-            document.body.appendChild(menu);
-
-            const rect = target.getBoundingClientRect();
-            menu.style.top = `${rect.bottom}px`;
-            menu.style.left = `${Math.min(rect.left, window.innerWidth - 150)}px`;
-            menu.style.display = 'block';
-
-            menu.addEventListener('click', (e) => {
-                e.stopPropagation();
-                menu.remove();
-                activeMenu = null;
-            });
-
-            document.addEventListener('click', () => {
-                if (menu.parentNode) menu.remove();
-                activeMenu = null;
-            }, { once: true });
-
-            activeMenu = menu;
-        }
 
         playlistsBtn.addEventListener('click', () => {
-            loadPlaylists();
+            toggleTab('playlists');
         });
 
         searchBtn.addEventListener('click', () => {
-            loadSearch();
+            toggleTab('search');
         });
 
         playingBtn.addEventListener('click', () => {
-            reloadPlaying();
+            toggleTab('playing');
         });
+
+        function toggleTab(tabName) {
+            playlistsTab.classList.remove('active');
+            searchTab.classList.remove('active');
+            playingTab.classList.remove('active');
+
+            playlistsBtn.classList.remove('active');
+            searchBtn.classList.remove('active');
+            playingBtn.classList.remove('active');
+
+            if (tabName === 'playlists') {
+                playlistsTab.classList.add('active');
+                playlistsBtn.classList.add('active');
+            } else if (tabName === 'search') {
+                searchTab.classList.add('active');
+                searchBtn.classList.add('active');
+            } else if (tabName === 'playing') {
+                playingTab.classList.add('active');
+                playingBtn.classList.add('active');
+            }
+        }
+
+        // Load default playlists content
+        function loadPlaylists() {
+            playlistsTab.innerHTML = '';
+            const playlists = Array.from({ length: 20 }, (_, i) => ({
+                name: `Playlist ${i + 1}`,
+                description: `Description for playlist ${i + 1}`,
+                logo: `playlist${(i % 5) + 1}.png`,
+                tracks: Array.from({ length: 20 }, (_, j) => ({
+                    name: `Track ${j + 1}`,
+                    artist: `Artist ${j + 1}`,
+                    thumbnail: `track${(j % 5) + 1}.png`
+                }))
+            }));
+
+            playlists.forEach(playlist => {
+                const div = document.createElement('div');
+                div.className = 'playlist';
+                div.innerHTML = `<img src="${playlist.logo}" alt="Playlist"> <div><h4>${playlist.name}</h4><p>${playlist.description}</p></div>`;
+                div.addEventListener('click', () => loadTracks(playlist.tracks));
+                playlistsTab.appendChild(div);
+            });
+        }
+
+        // Load tracks into Playing tab
+        function loadTracks(tracks) {
+            playingTab.innerHTML = '';
+            tracks.forEach(track => {
+                const div = document.createElement('div');
+                div.className = 'track';
+                div.innerHTML = `<img src="${track.thumbnail}" alt="Track"> <div><h4>${track.name}</h4><p>${track.artist}</p></div>`;
+                playingTab.appendChild(div);
+            });
+            toggleTab('playing');
+        }
 
         loadPlaylists();
     </script>
