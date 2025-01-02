@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spotify Clone</title>
+    <title>Music App</title>
     <style>
         body {
             margin: 0;
@@ -35,10 +35,16 @@
             align-items: center;
         }
 
-        .videoplayer-container video {
-            max-width: 100%;
-            height: auto;
+        video {
+            width: 100%;  /* Full width of the parent container */
+			height: 100%; /* Hide the video display */
+			object-fit: cover;
+		    display: block; /* Hide by default */
         }
+
+        video::-webkit-media-controls-panel {
+			display: flex; /* Ensure the toolbar is displayed */
+		}
 
         .main-container {
             flex: 1;
@@ -48,23 +54,37 @@
             padding-bottom: 60px; /* Ensure space for the bottom toolbar */
         }
 
-        .playlist, .track, .search-item {
+        .playlist-item, .track-item, .search-item {
             display: flex;
             align-items: center;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 10px;
             background-color: #282828;
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 10px;
         }
 
-        .playlist img, .track img, .search-item img {
-            height: 50px;
-            width: 50px;
+        .playlist-item img, .track-item img, .search-item img {
+            height: 40px;
+            width: 40px;
             border-radius: 4px;
             margin-right: 10px;
         }
 
-        .playlist:hover, .track:hover, .search-item:hover {
+        .playlist-item .details, .track-item .details {
+            flex: 1;
+        }
+
+        .playlist-item .details .title, .track-item .details .title {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .playlist-item .details .description, .track-item .details .description {
+            font-size: 12px;
+            color: #b3b3b3;
+        }
+
+        .playlist-item:hover, .track-item:hover, .search-item:hover {
             background-color: #1DB954;
         }
 
@@ -119,6 +139,10 @@
             cursor: pointer;
         }
 
+        #search-results {
+            margin-top: 60px; /* Ensures spacing between the search box and results */
+        }
+
         .menu-icon {
             margin-left: auto;
             cursor: pointer;
@@ -149,6 +173,59 @@
         #playlists-tab.active, #search-tab.active, #playing-tab.active {
             display: block;
         }
+
+        /* Menu button (three lines) */
+        .menu-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            color: #666;
+        }
+
+        /* Dropdown menu styling */
+        .dropdown-menu {
+            position: absolute;
+            background: #282828;
+            border-radius: 8px;
+            padding: 10px;
+            z-index: 1000;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+            color: white;
+            min-width: 150px;
+        }
+
+        /* Loading overlay styles */
+        #loadingOverlay {
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			z-index: 1000;
+		}
+
+		#loadingOverlay .spinner {
+			border: 8px solid rgba(255, 255, 255, 0.2);
+			border-top: 8px solid white;
+			border-radius: 50%;
+			width: 60px;
+			height: 60px;
+			animation: spin 1s linear infinite;
+		}
+
+		@keyframes spin {
+			from {
+				transform: rotate(0deg);
+			}
+			to {
+				transform: rotate(360deg);
+			}
+		}        
     </style>
 </head>
 <body>
@@ -178,9 +255,9 @@
     <div id="search-tab" class="main-container">
         <div class="search-box">
             <input type="text" placeholder="Search..." id="search-input">
-            <button id="search-btn-icon">🔍</button>
+            <button id="search-btn-icon" onclick="loadSearchResults()">🔍</button>
         </div>
-        <div>
+        <div id="search-results">
             <!-- Search results will go here -->
         </div>
     </div>
@@ -191,32 +268,22 @@
 
     <!-- Bottom Toolbar -->
     <div class="bottom-toolbar">
-        <button id="playlists-btn" class="active">Playlists</button>
-        <button id="search-btn">Search</button>
-        <button id="playing-btn">Playing</button>
-        <button id="admin-btn">Admin</button>
+        <button id="playlists-btn" class="active" onclick="toggleTab('playlists')">Playlists</button>
+        <button id="search-btn" onclick="toggleTab('search')">Search</button>
+        <button id="playing-btn" onclick="toggleTab('playing')">Playing</button>
+        <button id="admin-btn" onclick="toggleTab('admin')">Admin</button>
     </div>
 
     <script>
         const playlistsTab = document.getElementById('playlists-tab');
         const searchTab = document.getElementById('search-tab');
         const playingTab = document.getElementById('playing-tab');
+        const videoPlayer = document.getElementById('video-player');
+        const searchResults = document.getElementById('search-results');
 
         const playlistsBtn = document.getElementById('playlists-btn');
         const searchBtn = document.getElementById('search-btn');
         const playingBtn = document.getElementById('playing-btn');
-
-        playlistsBtn.addEventListener('click', () => {
-            toggleTab('playlists');
-        });
-
-        searchBtn.addEventListener('click', () => {
-            toggleTab('search');
-        });
-
-        playingBtn.addEventListener('click', () => {
-            toggleTab('playing');
-        });
 
         function toggleTab(tabName) {
             playlistsTab.classList.remove('active');
@@ -239,39 +306,292 @@
             }
         }
 
-        // Load default playlists content
         function loadPlaylists() {
-            playlistsTab.innerHTML = '';
             const playlists = Array.from({ length: 20 }, (_, i) => ({
                 name: `Playlist ${i + 1}`,
+                id: `${i + 1}`,
                 description: `Description for playlist ${i + 1}`,
-                logo: `playlist${(i % 5) + 1}.png`,
-                tracks: Array.from({ length: 20 }, (_, j) => ({
-                    name: `Track ${j + 1}`,
-                    artist: `Artist ${j + 1}`,
-                    thumbnail: `track${(j % 5) + 1}.png`
-                }))
+                images: [{ url: `https://mosaic.scdn.co/60/ab67616d00001e0233564b826ec8b117c7a05906ab67616d00001e0243eb3794977db60bced5ad16ab67616d00001e02b9ed3a94d94135ec6c3c9c2aab67616d00001e02ec244a784ef16ed95d9c665c`}],
+            }));
+            playlistsTab.innerHTML = '';
+            playlists.forEach(playlist => {
+                createPlaylistItem(null, playlistsTab, playlist)
+            });
+        } 
+
+        async function populateTracks(accessToken, playlistId){
+			// Get the tracks
+			//const tracks_array = await fetchMusicAppPlaylistTracks(accessToken, playlistId);
+            const tracks_array = Array.from({ length: 20 }, (_, i) => ({
+                name: `Track ${i + 1}`,
+                id: `${i + 1}`,
+                album: {artists:[{name: "Tu puta madre" }],
+                        images: [{ url: `https://i.scdn.co/image/ab67616d0000485138968dc90dc0ff8fc1d7b866`}]},
+                thumbnail: `https://i.scdn.co/image/ab67616d0000485138968dc90dc0ff8fc1d7b866`
             }));
 
-            playlists.forEach(playlist => {
-                const div = document.createElement('div');
-                div.className = 'playlist';
-                div.innerHTML = `<img src="${playlist.logo}" alt="Playlist"> <div><h4>${playlist.name}</h4><p>${playlist.description}</p></div>`;
-                div.addEventListener('click', () => loadTracks(playlist.tracks));
-                playlistsTab.appendChild(div);
-            });
+			// Add tracks based on the playlist selected
+            playingTab.innerHTML = ''; // Clear previous tracks
+			playingTab.scrollTop = 0;  // Scroll to top
+			tracks_array.forEach((item, index) => {
+				// const track_item = item.track;
+                const track_item = item;
+				createTrackItem(track_item, playingTab);
+				});
+
+				// Display that view
+				toggleTab('playing');
         }
 
-        // Load tracks into Playing tab
-        function loadTracks(tracks) {
-            playingTab.innerHTML = '';
-            tracks.forEach(track => {
-                const div = document.createElement('div');
-                div.className = 'track';
-                div.innerHTML = `<img src="${track.thumbnail}" alt="Track"> <div><h4>${track.name}</h4><p>${track.artist}</p></div>`;
-                playingTab.appendChild(div);
+        // Load search results into Search tab
+        function loadSearchResults() {
+            const tracks_array = Array.from({ length: 20 }, (_, i) => ({
+                name: `Track ${i + 1}`,
+                id: `${i + 1}`,
+                album: {artists:[{name: "Tu puta madre" }],
+                        images: [{ url: `https://i.scdn.co/image/ab67616d0000485138968dc90dc0ff8fc1d7b866`}]},
+                thumbnail: `https://i.scdn.co/image/ab67616d0000485138968dc90dc0ff8fc1d7b866`
+            }));
+
+			// Add tracks based on the playlist selected
+            searchResults.innerHTML = ''; // Clear previous tracks
+			searchResults.scrollTop = 0;  // Scroll to top
+			tracks_array.forEach((item, index) => {
+				// const track_item = item.track;
+                const track_item = item;
+				createTrackItem(track_item, searchResults);
+				});
+
+				// Display that view
+				toggleTab('search');
+        }
+
+        function createPlaylistItem(accessToken, parentObject, playlistObj) {
+            const playlistItem = document.createElement('div');
+            playlistItem.id = playlistObj.id;
+            playlistItem.className = 'playlist-item';
+            playlistItem.onclick = () => populateTracks(accessToken, playlistObj.id);
+
+            const img = document.createElement('img');
+            if ('images' in playlistObj && playlistObj.images.length > 0) {
+                img.src = playlistObj.images[playlistObj.images.length-1].url;
+            }
+            else {
+                img.src = "https://via.placeholder.com/50";
+            }
+            playlistItem.appendChild(img);
+
+            const detailsDiv = document.createElement('div');
+            detailsDiv.className = 'details';
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'title';	
+            titleDiv.textContent = playlistObj.name;				
+            const descriptionDiv = document.createElement('div');
+            descriptionDiv.className = 'description';	
+            descriptionDiv.textContent = playlistObj.description;				
+            detailsDiv.appendChild(titleDiv);
+            detailsDiv.appendChild(descriptionDiv);
+            playlistItem.appendChild(detailsDiv);
+
+            parentObject.appendChild(playlistItem);
+        }
+
+        function createTrackItem(track_item, trackListContainer){
+            const trackItem = document.createElement('div');
+            trackItem.className = 'track-item';
+            trackItem.id = track_item.id;
+            trackItem.onclick = () => playVideo(track_item);
+
+            // add track image
+            const img = document.createElement('img');
+            let thumbnail = undefined;
+            if ('album' in track_item && 'images' in track_item.album && track_item.album.images.length > 0) {
+                thumbnail =  track_item.album.images[track_item.album.images.length-1].url;
+            }
+            else {
+                thumbnail =  "https://via.placeholder.com/50";
+            }
+            img.src = thumbnail;
+            trackItem.appendChild(img);
+
+            // add track details
+            const details = document.createElement('div');
+            details.className = 'details';
+            const title = document.createElement('div');
+            title.className = 'title';	
+            title.textContent = track_item.name;				
+            const description = document.createElement('div');
+            description.className = 'description';	
+            description.textContent = getTrackAlbumArtist(track_item);	
+            
+            details.appendChild(title);
+            details.appendChild(description);
+            trackItem.appendChild(details);
+
+            // add menu button
+            
+            const buttonMenuId = 'track-menu-' + track_item.id
+            const menuButton = document.createElement('button');
+            menuButton.className = 'menu-button';
+            menuButton.innerHTML = '☰';
+            // menuButton.onclick = () => toggleMenu(buttonMenuId, event);
+            
+            const removeFromPlaylistCallback = () => {
+                alert("Track removed from playlist.");
+            };
+
+            const addToPlaylistCallback = (playlistName) => {
+                alert(`Track added to ${playlistName}`);
+            };
+
+            menuButton.addEventListener("click", (event) => {
+                event.stopPropagation();
+                showContextMenu(event, removeFromPlaylistCallback, addToPlaylistCallback);
             });
-            toggleTab('playing');
+
+            trackItem.appendChild(menuButton);
+
+            trackListContainer.appendChild(trackItem);
+        }
+
+        async function playVideo(track_item) {
+            videoPlayer.pause();
+            videoPlayer.src = "https://samplelib.com/lib/preview/mp3/sample-3s.mp3";
+
+            // thumbnail
+            let thumbnail = undefined;
+            if ('album' in track_item && 'images' in track_item.album && track_item.album.images.length > 0) {
+                thumbnail =  track_item.album.images[track_item.album.images.length-1].url;
+            }
+            else {
+                thumbnail =  "https://via.placeholder.com/50";
+            }
+            videoPlayer.setAttribute('poster',thumbnail);
+
+
+            videoPlayer.play();
+        }
+
+
+        // Show the context menu
+        function showContextMenu (event, removeCallback, addCallback) {
+            // Remove any existing menus
+            const existingMenu = document.querySelector(".menu");
+            if (existingMenu) existingMenu.remove();
+
+            // Create a new menu
+            const menu = document.createElement("div");
+            menu.className = "dropdown-menu";
+            menu.style.left = `${event.pageX-160}px`;
+            menu.style.top = `${event.pageY}px`;
+
+            // Remove from playlist option
+            const removeOption = document.createElement("div");
+            removeOption.className = "menu-item";
+            removeOption.innerText = "Remove from playlist";
+            removeOption.addEventListener("click", () => {
+                removeCallback();
+                menu.remove();
+            });
+            menu.appendChild(removeOption);
+
+            // Static text
+            const staticText = document.createElement("div");
+            staticText.className = "menu-item static";
+            staticText.innerText = "Add to playlist";
+            menu.appendChild(staticText);
+
+            // Add playlist options
+            const playlists = ["Playlist 1", "Playlist 2", "Playlist 3"];
+            playlists.forEach((playlistName) => {
+                const playlistOption = document.createElement("div");
+                playlistOption.className = "menu-item";
+                playlistOption.innerText = playlistName;
+                playlistOption.addEventListener("click", () => {
+                    addCallback(playlistName);
+                    menu.remove();
+                });
+                menu.appendChild(playlistOption);
+            });
+
+            // Append menu to the body
+            document.body.appendChild(menu);
+
+            // Close menu when clicking elsewhere
+            document.addEventListener(
+                "click",
+                () => {
+                    menu.remove();
+                },
+                { once: true }
+            );
+        }
+
+
+        // Functions for toggling Menu
+        function toggleMenu(buttonMenuId, event) {
+            // Close other open menus
+            document.querySelectorAll('.dropdown-menu').forEach(menu => {
+                if (menu.id !== buttonMenuId) {
+                    menu.classList.remove('show'); // Ensure you are toggling the menu itself
+                }
+            });
+
+            // Toggle the selected menu
+            const menu = document.getElementById(buttonMenuId);
+            if (menu) {
+                menu.classList.toggle('show');
+            }
+
+            // Prevent click from propagating and closing the menu immediately
+            if (event) {
+                event.stopPropagation();
+            }
+        }
+
+        // Function to show the loading screen used when waiting for a new track to load
+        function showLoadingScreen() {
+            const loadingOverlay = document.createElement("div");
+            loadingOverlay.id = "loadingOverlay";
+            loadingOverlay.innerHTML = `<div class="spinner"></div>`;
+            document.body.appendChild(loadingOverlay);
+        }
+
+        // Function to hide the loading screen used when waiting for a new track to load
+        function hideLoadingScreen() {
+            const loadingOverlay = document.getElementById("loadingOverlay");
+            if (loadingOverlay) {
+                loadingOverlay.remove();
+            }
+        }
+
+        function getTrackAlbumArtist(track_item){
+            const maxLenght = 50; 
+            let content = "";
+            let artists = "";
+            if ('album' in track_item) {
+                content = track_item.album.name;
+            }
+            if ('artists' in track_item && track_item.artists.length > 0) {
+                for (let i = 0; i < track_item.artists.length; i++) {
+                    let sep = "";
+                    if (artists != "") {
+                        sep = ", "
+                    }
+                    if (artists == "" || artists.lenght < 50) {
+                        artists = artists + sep + track_item.artists[i].name;
+                    }
+                    else {
+                        break;
+                    }
+                }
+            }
+            let sep2 = "";
+            if (artists != "") {
+                sep2 = " | "
+            }
+            content = content + sep2 + artists
+            return content;
         }
 
         loadPlaylists();
