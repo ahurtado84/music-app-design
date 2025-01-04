@@ -6,21 +6,23 @@
     <title>Music App</title>
     <style>
         body {
-            margin: 0;
             font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
             background-color: #121212;
             color: white;
             display: flex;
             flex-direction: column;
             height: 100vh;
+            overflow: hidden;
         }
 
         .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 15px;
+            padding: 10px;
             background-color: #1DB954;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
         }
 
         .header img {
@@ -46,12 +48,69 @@
 			display: flex; /* Ensure the toolbar is displayed */
 		}
 
-        .main-container {
+        .controlbar-container {
+            display: flex;
+            width: 100%;
+        }
+
+        .bottom-toolbar {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 10px 0;
+            background-color: #181818;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            z-index: 10;
+        }
+
+        .bottom-toolbar button {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .bottom-toolbar button.active {
+            color: #1DB954;
+        }
+
+        /* Controlling which controlbar and list to display */
+        #playlists-controlbar, #search-controlbar, #playing-controlbar, #playlists, #search-results, #tracks {
+            display: none;
+        }
+
+        #search-controlbar.active, #playing-controlbar.active, #playlists.active, #search-results.active, #tracks.active {  /* playlists-controlbar does't have an active mode, nothing to show there */
+            display: block;
+        }
+
+        .list {
             flex: 1;
             overflow-y: auto;
+            margin: 0 auto;
+            width: 95%;  /* I need this to be less than 100% to avoid getting a second toolbar */
             padding: 10px;
-            display: none;
-            padding-bottom: 60px; /* Ensure space for the bottom toolbar */
+            padding-bottom: 40px; /* Ensure space for the bottom toolbar */
+        }
+
+        .controls-bar {
+            display: flex;
+            justify-content: space-around;
+            background-color: #282828;
+            padding: 10px 0;
+            width: 100%;
+        }
+
+        .controls-bar .control-item {
+            text-align: center;
+            color: white;
+            font-size: 14px;
+            padding: 10px 20px;
+            background-color: #1DB954;
+            border-radius: 20px;
+            cursor: pointer;
         }
 
         .playlist-item, .track-item, .search-item {
@@ -88,60 +147,53 @@
             background-color: #1DB954;
         }
 
-        .bottom-toolbar {
+        /* Search stuff */
+        .search-box {  /* Generic container object to put stuff inside */
             display: flex;
             justify-content: space-around;
-            align-items: center;
+            background-color: #121212;
             padding: 10px 0;
-            background-color: #181818;
-            position: fixed;
-            bottom: 0;
             width: 100%;
-            z-index: 10;
+        }
+        
+        .search-input-container {  /* Style for the search input and search icon container */
+            position: relative;
+            padding-left: 10px;
+            padding-right: 10px;
+            width: 100%;
         }
 
-        .bottom-toolbar button {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
-        }
-
-        .bottom-toolbar button.active {
-            color: #1DB954;
-        }
-
-        .search-box {
-            display: flex;
-            align-items: center;
-            background-color: #282828;
+        .search-input {
+            width: 100%;
             padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            position: sticky;
-            top: 0;
-            z-index: 2;
-        }
-
-        .search-box input {
-            flex: 1;
-            background: none;
+            padding-right: 40px; /* Add space for the search icon */
+            border-radius: 50px;
             border: none;
-            color: white;
             outline: none;
+            background-color: #2a2a2a;
+            color: #fff;
+            font-size: 16px;
+            box-sizing: border-box; /* Ensure padding is included in width calculation */
         }
 
-        .search-box button {
-            background: none;
-            border: none;
-            color: white;
-            cursor: pointer;
+        .search-input::placeholder {
+            color: #b3b3b3;
         }
 
-        #search-results {
-            margin-top: 60px; /* Ensures spacing between the search box and results */
+        .search-icon {
+            position: absolute;
+            top: 50%;
+            right: 15px;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            color: #b3b3b3;
+            pointer-events: none; /* Prevents the icon from interfering with clicking on the input */
         }
+
+        .search-input-container:hover .search-input {
+				background-color: #333;
+		}
 
         .menu-icon {
             margin-left: auto;
@@ -166,15 +218,7 @@
             background-color: #1DB954;
         }
 
-        #playlists-tab, #search-tab, #playing-tab {
-            display: none;
-        }
-
-        #playlists-tab.active, #search-tab.active, #playing-tab.active {
-            display: block;
-        }
-
-        /* Menu button (three lines) */
+        /* Menu button (three lines) and Dropdown menu styling */
         .menu-button {
             background: none;
             border: none;
@@ -183,7 +227,6 @@
             color: #666;
         }
 
-        /* Dropdown menu styling */
         .dropdown-menu {
             position: absolute;
             background: #282828;
@@ -232,10 +275,11 @@
 
     <!-- Header -->
     <div class="header">
-        <img src="logo.png" alt="Logo">
-        <div>
-            <span>User Name</span>
-            <img src="user-picture.png" alt="User" style="height: 40px; border-radius: 50%; margin-left: 10px;">
+        <img src="img/logo_black.png" alt="Logo" style="vertical-align: middle; margin-right: 10px; width: 40px; height: 40px;">
+        <span style="vertical-align: middle;">Spot</span><span style="vertical-align: middle;">ify</span>
+        <div style="vertical-align: middle; float: right; display: flex; align-items: center;">
+            <span style="margin-right: 10px; font-size: 14px;" id="user-name"></span>
+            <img src="https://via.placeholder.com/50" style="width: 50px; height: 50px;" id="user-picture">
         </div>
     </div>
 
@@ -247,23 +291,37 @@
         </video>
     </div>
 
-    <!-- Main Tabs -->
-    <div id="playlists-tab" class="main-container active">
-        <!-- Playlists content -->
+    <!-- Control Bar Tabs -->
+    <div id="controlbar-container">
+        <div id="playlists-controlbar" class="controlbar-tab active">
+        </div>
+        <div id="search-controlbar" class="controlbar-tab">
+			<div class="search-box">
+				<div class="search-input-container">
+					<input type="text" class="search-input" placeholder="Search..." id="search-text-input">
+					<svg id="search-icon" class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<circle cx="11" cy="11" r="8"></circle>
+						<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+					</svg>
+				</div>
+			</div>            
+        </div>
+        <div id="playing-controlbar" class="controlbar-tab">
+            <div id="playlist-controls-bar" class="controls-bar">
+                <div class="control-item" onclick="showPlaylists()">Back</div>
+                <div class="control-item" onclick="playAll()">Play All</div>
+                <div class="control-item" onclick="playRandom()">Random</div>
+            </div>
+        </div>
     </div>
 
-    <div id="search-tab" class="main-container">
-        <div class="search-box">
-            <input type="text" placeholder="Search..." id="search-input">
-            <button id="search-btn-icon" onclick="loadSearchResults()">🔍</button>
-        </div>
-        <div id="search-results">
-            <!-- Search results will go here -->
-        </div>
+    <!-- Items go here -->
+    <div id="playlists" class="list active">
     </div>
-
-    <div id="playing-tab" class="main-container">
-        <!-- Tracks content -->
+    <div id="search-results" class="list">
+    </div>        
+    <div id="tracks" class="list">
+    </div>       
     </div>
 
     <!-- Bottom Toolbar -->
@@ -275,33 +333,46 @@
     </div>
 
     <script>
-        const playlistsTab = document.getElementById('playlists-tab');
-        const searchTab = document.getElementById('search-tab');
-        const playingTab = document.getElementById('playing-tab');
+        // store HTML objects in variables
         const videoPlayer = document.getElementById('video-player');
-        const searchResults = document.getElementById('search-results');
+       
+        const playListControls= document.getElementById('playlists-controlbar')
+        const searchControls = document.getElementById('search-controlbar');
+        const playingControls = document.getElementById('playing-controlbar');       
+
+        const playListsDiv= document.getElementById('playlists')
+        const searchResultsDiv = document.getElementById('search-results');
+        const tracksDiv = document.getElementById('tracks');
 
         const playlistsBtn = document.getElementById('playlists-btn');
         const searchBtn = document.getElementById('search-btn');
         const playingBtn = document.getElementById('playing-btn');
 
+
         function toggleTab(tabName) {
-            playlistsTab.classList.remove('active');
-            searchTab.classList.remove('active');
-            playingTab.classList.remove('active');
+            playListControls.classList.remove('active');
+            searchControls.classList.remove('active');
+            playingControls.classList.remove('active');
+
+            playListsDiv.classList.remove('active');
+            searchResultsDiv.classList.remove('active');
+            tracksDiv.classList.remove('active');
 
             playlistsBtn.classList.remove('active');
             searchBtn.classList.remove('active');
             playingBtn.classList.remove('active');
 
             if (tabName === 'playlists') {
-                playlistsTab.classList.add('active');
+                playListControls.classList.add('active');
+                playListsDiv.classList.add('active');
                 playlistsBtn.classList.add('active');
             } else if (tabName === 'search') {
-                searchTab.classList.add('active');
+                searchControls.classList.add('active');
+                searchResultsDiv.classList.add('active');
                 searchBtn.classList.add('active');
             } else if (tabName === 'playing') {
-                playingTab.classList.add('active');
+                playingControls.classList.add('active');
+                tracksDiv.classList.add('active');
                 playingBtn.classList.add('active');
             }
         }
@@ -313,9 +384,9 @@
                 description: `Description for playlist ${i + 1}`,
                 images: [{ url: `https://mosaic.scdn.co/60/ab67616d00001e0233564b826ec8b117c7a05906ab67616d00001e0243eb3794977db60bced5ad16ab67616d00001e02b9ed3a94d94135ec6c3c9c2aab67616d00001e02ec244a784ef16ed95d9c665c`}],
             }));
-            playlistsTab.innerHTML = '';
+            playListsDiv.innerHTML = '';
             playlists.forEach(playlist => {
-                createPlaylistItem(null, playlistsTab, playlist)
+                createPlaylistItem(null, playListsDiv, playlist)
             });
         } 
 
@@ -331,16 +402,18 @@
             }));
 
 			// Add tracks based on the playlist selected
-            playingTab.innerHTML = ''; // Clear previous tracks
-			playingTab.scrollTop = 0;  // Scroll to top
+            tracksDiv.innerHTML = ''; // Clear previous tracks
 			tracks_array.forEach((item, index) => {
 				// const track_item = item.track;
                 const track_item = item;
-				createTrackItem(track_item, playingTab);
+				createTrackItem(track_item, tracksDiv);
 				});
 
-				// Display that view
-				toggleTab('playing');
+			// Display that view
+			toggleTab('playing');
+            
+            // Scroll to top. Doing it after toggling the tab as it wasn't working doing it before
+            tracksDiv.scrollTop = 0;  
         }
 
         // Load search results into Search tab
@@ -354,12 +427,12 @@
             }));
 
 			// Add tracks based on the playlist selected
-            searchResults.innerHTML = ''; // Clear previous tracks
-			searchResults.scrollTop = 0;  // Scroll to top
+            searchResultsDiv.innerHTML = ''; // Clear previous tracks
+			searchResultsDiv.scrollTop = 0;  // Scroll to top
 			tracks_array.forEach((item, index) => {
 				// const track_item = item.track;
                 const track_item = item;
-				createTrackItem(track_item, searchResults);
+				createTrackItem(track_item, searchResultsDiv);
 				});
 
 				// Display that view
@@ -429,7 +502,6 @@
             trackItem.appendChild(details);
 
             // add menu button
-            
             const buttonMenuId = 'track-menu-' + track_item.id
             const menuButton = document.createElement('button');
             menuButton.className = 'menu-button';
@@ -472,11 +544,10 @@
             videoPlayer.play();
         }
 
-
         // Show the context menu
-        function showContextMenu (event, removeCallback, addCallback) {
+        function showContextMenu(event, removeCallback, addCallback) {
             // Remove any existing menus
-            const existingMenu = document.querySelector(".menu");
+            const existingMenu = document.querySelector(".dropdown-menu");
             if (existingMenu) existingMenu.remove();
 
             // Create a new menu
@@ -526,7 +597,6 @@
                 { once: true }
             );
         }
-
 
         // Functions for toggling Menu
         function toggleMenu(buttonMenuId, event) {
@@ -595,6 +665,24 @@
         }
 
         loadPlaylists();
+        loadSearchResults();
+
+        /*
+        function adjustListContainers() {
+            // Get all elements with the class "list-container"
+            const listContainers = document.querySelectorAll('.list-container');
+            const viewportHeight = window.innerHeight;
+
+            // Iterate over each element
+            listContainers.forEach(container => {
+                const containerHeight = container.childElementCount * 25;
+                container.style.maxHeight = `${containerHeight - 15}px`;
+            });
+        }
+
+        window.addEventListener('resize', adjustListContainers);
+        adjustListContainers();
+        */
     </script>
 </body>
 </html>
