@@ -78,11 +78,11 @@
         }
 
         /* Controlling which controlbar and list to display */
-        #playlists-controlbar, #search-controlbar, #playing-controlbar, #playlists, #search-results, #tracks {
+        #playlists-controlbar, #search-controlbar, #playing-controlbar, #playlists, #search-results, #tracks, #admin-container {
             display: none;
         }
 
-        #search-controlbar.active, #playing-controlbar.active, #playlists.active, #search-results.active, #tracks.active {  /* playlists-controlbar does't have an active mode, nothing to show there */
+        #search-controlbar.active, #playing-controlbar.active, #playlists.active, #search-results.active, #tracks.active, #admin-container.active {  /* playlists-controlbar does't have an active mode, nothing to show there */
             display: block;
         }
 
@@ -103,14 +103,19 @@
             width: 100%;
         }
 
-        .controls-bar .control-item {
+        /* Play all, Random, back buttons */
+        .control-button {
             text-align: center;
             color: white;
             font-size: 14px;
             padding: 10px 20px;
-            background-color: #1DB954;
+            background-color: #181818;
             border-radius: 20px;
             cursor: pointer;
+        }
+
+        .control-button.active {
+            background-color: #1DB954;
         }
 
         .playlist-item, .track-item, .search-item {
@@ -143,7 +148,14 @@
             color: #b3b3b3;
         }
 
+        
         .playlist-item:hover, .track-item:hover, .search-item:hover {
+            /* background-color: #1DB954; */
+            cursor: pointer;
+        }
+        
+
+        .playlist-item.active, .track-item.active, .search-item.active {
             background-color: #1DB954;
         }
 
@@ -216,6 +228,18 @@
 
         .menu-item:hover {
             background-color: #1DB954;
+        }
+
+        /* Console */
+        #consoleOutput {
+            height: 300px;
+            border: 1px solid #000;
+            background-color: #cfcece;
+            overflow-y: scroll;
+            padding: 10px;
+            padding-right: 10px;
+            font-family: monospace;
+            color: black;
         }
 
         /* Menu button (three lines) and Dropdown menu styling */
@@ -308,9 +332,9 @@
         </div>
         <div id="playing-controlbar" class="controlbar-tab">
             <div id="playlist-controls-bar" class="controls-bar">
-                <div class="control-item" onclick="showPlaylists()">Back</div>
-                <div class="control-item" onclick="playAll()">Play All</div>
-                <div class="control-item" onclick="playRandom()">Random</div>
+                <div class="control-button" onclick="toggleTab('playlists')">Back</div>
+                <div id="play-all-btn" class="control-button" onclick="playAllCallback()">Play All</div>
+                <div id="random-play-btn" class="control-button" onclick="ramdomPlayCallback()">Random</div>
             </div>
         </div>
     </div>
@@ -322,6 +346,9 @@
     </div>        
     <div id="tracks" class="list">
     </div>       
+    <!-- Admin Container -->
+    <div id="admin-container">
+        <div id="consoleOutput"></div>
     </div>
 
     <!-- Bottom Toolbar -->
@@ -333,7 +360,25 @@
     </div>
 
     <script>
-        // store HTML objects in variables
+        // First code to run, to store all the URL parameters
+        // Get all URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+
+        // Iterate over each parameter and store in localStorage
+        urlParams.forEach((value, key) => {
+            localStorage.setItem(key, value);
+            console.log(`Read URL parameter ${key}`);
+        });
+    </script>
+    <script src="src/music-app-api.js"></script>
+    <script src="src/media-cache-database.js"></script>
+    <script>
+        // --------------------- App variables ---------------------
+        const dbName = "mediaDB";
+        const storeName = "mediaStore";
+        const maxDBSizeMB = 1024;
+        
+        // --------------------- Store HTML objects in variables ---------------------
         const videoPlayer = document.getElementById('video-player');
        
         const playListControls= document.getElementById('playlists-controlbar')
@@ -343,100 +388,106 @@
         const playListsDiv= document.getElementById('playlists')
         const searchResultsDiv = document.getElementById('search-results');
         const tracksDiv = document.getElementById('tracks');
+        const adminDiv = document.getElementById('admin-container');
 
         const playlistsBtn = document.getElementById('playlists-btn');
         const searchBtn = document.getElementById('search-btn');
         const playingBtn = document.getElementById('playing-btn');
+        const adminBtn = document.getElementById('admin-btn');
 
+        const consoleOutput = document.getElementById('consoleOutput');
 
-        function toggleTab(tabName) {
-            playListControls.classList.remove('active');
-            searchControls.classList.remove('active');
-            playingControls.classList.remove('active');
+        const playAllButton = document.getElementById('play-all-btn');
+        const randomPlayButton = document.getElementById('random-play-btn');
 
-            playListsDiv.classList.remove('active');
-            searchResultsDiv.classList.remove('active');
-            tracksDiv.classList.remove('active');
+        // --------------------- Dealing with Music App Data ---------------------
+        let accessToken = null;
+        let playlists_data = null;
+        let currentowner_playlists = null;
+        let musicapp_profile = null;
+       
+        async function main() {
+             // Clean up Memory
+             await cleanUpMemory();
 
-            playlistsBtn.classList.remove('active');
-            searchBtn.classList.remove('active');
-            playingBtn.classList.remove('active');
+             // Connection with Music app
+             await connect();
 
-            if (tabName === 'playlists') {
-                playListControls.classList.add('active');
-                playListsDiv.classList.add('active');
-                playlistsBtn.classList.add('active');
-            } else if (tabName === 'search') {
-                searchControls.classList.add('active');
-                searchResultsDiv.classList.add('active');
-                searchBtn.classList.add('active');
-            } else if (tabName === 'playing') {
-                playingControls.classList.add('active');
-                tracksDiv.classList.add('active');
-                playingBtn.classList.add('active');
+            // Now we should have the token
+            // Add the event listener for the search
+            document.getElementById("search-icon").addEventListener("click", populateSearchResults(accessToken));
+            document.getElementById("search-text-input").addEventListener("keydown", function(event) {
+                // Check if the key pressed is 'Enter'
+                if (event.key === 'Enter') {
+                    // Call a function or perform an action
+                    populateSearchResults(accessToken);
+                }
+            });  
+            
+            // Load Profile
+            musicapp_profile = await fetchMusicAppProfile(accessToken);
+            document.getElementById("user-name").innerText = musicapp_profile.display_name;
+            if (musicapp_profile.images.length > 0) {
+                document.getElementById("user-picture").src = musicapp_profile.images[0].url;
             }
-        }
 
-        function loadPlaylists() {
-            const playlists = Array.from({ length: 20 }, (_, i) => ({
-                name: `Playlist ${i + 1}`,
-                id: `${i + 1}`,
-                description: `Description for playlist ${i + 1}`,
-                images: [{ url: `https://mosaic.scdn.co/60/ab67616d00001e0233564b826ec8b117c7a05906ab67616d00001e0243eb3794977db60bced5ad16ab67616d00001e02b9ed3a94d94135ec6c3c9c2aab67616d00001e02ec244a784ef16ed95d9c665c`}],
-            }));
+            // Load Playlists
+            playlists_data = await fetchMusicAppPlaylists(accessToken, musicapp_profile.id);
             playListsDiv.innerHTML = '';
-            playlists.forEach(playlist => {
-                createPlaylistItem(null, playListsDiv, playlist)
+            playlists_data.forEach(playlist_obj => {
+                createPlaylistItem(accessToken, playListsDiv, playlist_obj)
             });
+
+            currentowner_playlists = playlists_data
+                .filter(playlist => playlist.owner.id === musicapp_profile.id)
         } 
 
-        async function populateTracks(accessToken, playlistId){
-			// Get the tracks
-			//const tracks_array = await fetchMusicAppPlaylistTracks(accessToken, playlistId);
-            const tracks_array = Array.from({ length: 20 }, (_, i) => ({
-                name: `Track ${i + 1}`,
-                id: `${i + 1}`,
-                album: {artists:[{name: "Tu puta madre" }],
-                        images: [{ url: `https://i.scdn.co/image/ab67616d0000485138968dc90dc0ff8fc1d7b866`}]},
-                thumbnail: `https://i.scdn.co/image/ab67616d0000485138968dc90dc0ff8fc1d7b866`
-            }));
-
-			// Add tracks based on the playlist selected
-            tracksDiv.innerHTML = ''; // Clear previous tracks
-			tracks_array.forEach((item, index) => {
-				// const track_item = item.track;
-                const track_item = item;
-				createTrackItem(track_item, tracksDiv);
-				});
-
-			// Display that view
-			toggleTab('playing');
-            
-            // Scroll to top. Doing it after toggling the tab as it wasn't working doing it before
-            tracksDiv.scrollTop = 0;  
+        async function cleanUpMemory() {
+            // Clean up Memory
+            // console.log(`Deleting old records if size is >${maxDBSizeMB} MB`);
+            const db = await getMediaDatabase(dbName, storeName);
+            let deletedCount = await manageMediaDatabaseSize(dbName, storeName, maxDBSizeMB);
+            // Check memory used. This call nees to be done after calling getMediaDatabase always!
+            try {
+                let storageUsedMB = await getIndexedDBStorageUsed(dbName, storeName);
+            } catch (error) {
+                console.log(`Error reading memory use: ${error.message}`);
+            }        
         }
 
-        // Load search results into Search tab
-        function loadSearchResults() {
-            const tracks_array = Array.from({ length: 20 }, (_, i) => ({
-                name: `Track ${i + 1}`,
-                id: `${i + 1}`,
-                album: {artists:[{name: "Tu puta madre" }],
-                        images: [{ url: `https://i.scdn.co/image/ab67616d0000485138968dc90dc0ff8fc1d7b866`}]},
-                thumbnail: `https://i.scdn.co/image/ab67616d0000485138968dc90dc0ff8fc1d7b866`
-            }));
+        async function connect() {
+            const clientId = localStorage.getItem("clientId");
+            const clientSecret = localStorage.getItem("clientSecret");
 
-			// Add tracks based on the playlist selected
+            if (!clientId || !clientSecret) {
+                alert('Add a clientId= and clientSecret= to the URL');
+                // Finalize execution
+                throw new Error("No clientId or clientSecret, stopping execution");  // Finalize execution
+            }
+
+            // Get Music App token
+            accessToken = await getMusicAppAccessToken();
+            if (accessToken) {
+                console.log("Got Music App Token");
+            } else {
+                throw new Error("No token, stopping execution");  // Finalize execution
+            }   
+        }
+
+        async function populateSearchResults(accessToken){
+            const query = document.getElementById('search-text-input').value;
+            // Get the tracks
+            const tracks_array = await searchMusicApp(accessToken, query);
+            if (!(tracks_array)){
+                return null;  // Finalize execution
+            }
+            // Add tracks based on the playlist selected
+            const trackListContainer = document.getElementById('search-track-list');
             searchResultsDiv.innerHTML = ''; // Clear previous tracks
-			searchResultsDiv.scrollTop = 0;  // Scroll to top
-			tracks_array.forEach((item, index) => {
-				// const track_item = item.track;
-                const track_item = item;
-				createTrackItem(track_item, searchResultsDiv);
-				});
-
-				// Display that view
-				toggleTab('search');
+            searchResultsDiv.scrollTop = 0;  // Scroll to top
+            tracks_array.forEach((track_data, index) => {
+                createTrackItem(track_data, searchResultsDiv);
+                });
         }
 
         function createPlaylistItem(accessToken, parentObject, playlistObj) {
@@ -446,7 +497,7 @@
             playlistItem.onclick = () => populateTracks(accessToken, playlistObj.id);
 
             const img = document.createElement('img');
-            if ('images' in playlistObj && playlistObj.images.length > 0) {
+            if ('images' in playlistObj && playlistObj.images !== null && Array.isArray(playlistObj.images) && playlistObj.images.length > 0) {
                 img.src = playlistObj.images[playlistObj.images.length-1].url;
             }
             else {
@@ -469,83 +520,160 @@
             parentObject.appendChild(playlistItem);
         }
 
-        function createTrackItem(track_item, trackListContainer){
-            const trackItem = document.createElement('div');
-            trackItem.className = 'track-item';
-            trackItem.id = track_item.id;
-            trackItem.onclick = () => playVideo(track_item);
+        async function populateTracks(accessToken, playlistId){
+			// Get the tracks
+			const tracks_array = await fetchMusicAppPlaylistTracks(accessToken, playlistId);
+
+			// Add tracks based on the playlist selected
+            tracksDiv.innerHTML = ''; // Clear previous tracks
+			tracks_array.forEach((item, index) => {
+				const track_data = item.track;
+				createTrackItem(track_data, tracksDiv, playlistId);
+				});
+            
+            // restart the list of playing songs
+            playlistTracksToPlay = Array.from(tracksDiv.children);
+
+			// Display that view
+			toggleTab('playing');
+            
+            // Scroll to top. Doing it after toggling the tab as it wasn't working doing it before
+            tracksDiv.scrollTop = 0;  
+        }
+
+        function createTrackItem(track_data, trackListContainer, playlistId=""){
+            const trackElement = document.createElement('div');
+            trackElement.className = 'track-item';
+            trackElement.id = trackListContainer.id + "-" +  track_data.id;
+            // store Play data in the HTML object to use when playing
+            trackElement.dataset.track_data = track_data;
+
+            trackElement.onclick = () => playTrack(trackElement);
 
             // add track image
             const img = document.createElement('img');
-            let thumbnail = undefined;
-            if ('album' in track_item && 'images' in track_item.album && track_item.album.images.length > 0) {
-                thumbnail =  track_item.album.images[track_item.album.images.length-1].url;
+            let thumbnail_small = undefined;
+            let thumbnail_large = undefined;
+            
+            if ('album' in track_data && 'images' in track_data.album && track_data.album.images !== null && Array.isArray(track_data.album.images) && track_data.album.images.length > 0) {
+                thumbnail_small =  track_data.album.images[track_data.album.images.length-1].url;
+                thumbnail_large =  track_data.album.images[0].url;
             }
             else {
-                thumbnail =  "https://via.placeholder.com/50";
+                thumbnail_small =  "https://via.placeholder.com/50";
+                thumbnail_large =  "https://via.placeholder.com/50";
             }
-            img.src = thumbnail;
-            trackItem.appendChild(img);
+            img.src = thumbnail_small;
+            trackElement.appendChild(img);
+
+            // store Play data in the HTML object to use when playing
+            trackElement.dataset.thumbnail = thumbnail_large;
 
             // add track details
             const details = document.createElement('div');
             details.className = 'details';
             const title = document.createElement('div');
             title.className = 'title';	
-            title.textContent = track_item.name;				
+            title.textContent = track_data.name;				
             const description = document.createElement('div');
             description.className = 'description';	
-            description.textContent = getTrackAlbumArtist(track_item);	
+            description.textContent = getTrackAlbumArtist(track_data);	
             
             details.appendChild(title);
             details.appendChild(description);
-            trackItem.appendChild(details);
+            trackElement.appendChild(details);
 
             // add menu button
-            const buttonMenuId = 'track-menu-' + track_item.id
+            const buttonMenuId = 'track-menu-' + track_data.id
             const menuButton = document.createElement('button');
             menuButton.className = 'menu-button';
             menuButton.innerHTML = '☰';
             // menuButton.onclick = () => toggleMenu(buttonMenuId, event);
             
-            const removeFromPlaylistCallback = () => {
-                alert("Track removed from playlist.");
-            };
-
-            const addToPlaylistCallback = (playlistName) => {
-                alert(`Track added to ${playlistName}`);
-            };
-
             menuButton.addEventListener("click", (event) => {
                 event.stopPropagation();
-                showContextMenu(event, removeFromPlaylistCallback, addToPlaylistCallback);
+                showContextMenu(event, track_data, trackElement, playlistId);
             });
 
-            trackItem.appendChild(menuButton);
+            trackElement.appendChild(menuButton);
 
-            trackListContainer.appendChild(trackItem);
+            trackListContainer.appendChild(trackElement);
         }
 
-        async function playVideo(track_item) {
-            videoPlayer.pause();
-            videoPlayer.src = "https://samplelib.com/lib/preview/mp3/sample-3s.mp3";
+        async function addToPlaylistCallback (playlistName)  {
+            alert(`Track added to ${playlistName}`);
+        };
 
-            // thumbnail
-            let thumbnail = undefined;
-            if ('album' in track_item && 'images' in track_item.album && track_item.album.images.length > 0) {
-                thumbnail =  track_item.album.images[track_item.album.images.length-1].url;
+        async function removeFromPlaylistCallback () {
+            alert("Track removed from playlist.");
+        }
+
+        function getTrackAlbumArtist(track_data){
+            const maxLenght = 50; 
+            let content = "";
+            let artists = "";
+            if ('album' in track_data) {
+                content = track_data.album.name;
             }
-            else {
-                thumbnail =  "https://via.placeholder.com/50";
+            if ('artists' in track_data && track_data.artists.length > 0) {
+                for (let i = 0; i < track_data.artists.length; i++) {
+                    let sep = "";
+                    if (artists !== "") {
+                        sep = ", "
+                    }
+                    if (artists == "" || artists.lenght < 50) {
+                        artists = artists + sep + track_data.artists[i].name;
+                    }
+                    else {
+                        break;
+                    }
+                }
             }
-            videoPlayer.setAttribute('poster',thumbnail);
+            let sep2 = "";
+            if (artists !== "") {
+                sep2 = " | "
+            }
+            content = content + sep2 + artists
+            return content;
+        }
 
+        // --------------------- UI Functions ---------------------
+        // Switch between tabs
+        function toggleTab(tabName) {
+            playListControls.classList.remove('active');
+            searchControls.classList.remove('active');
+            playingControls.classList.remove('active');
 
-            videoPlayer.play();
+            playListsDiv.classList.remove('active');
+            searchResultsDiv.classList.remove('active');
+            tracksDiv.classList.remove('active');
+            adminDiv.classList.remove('active');
+
+            playlistsBtn.classList.remove('active');
+            searchBtn.classList.remove('active');
+            playingBtn.classList.remove('active');
+            adminBtn.classList.remove('active');
+
+            if (tabName === 'playlists') {
+                playListControls.classList.add('active');
+                playListsDiv.classList.add('active');
+                playlistsBtn.classList.add('active');
+            } else if (tabName === 'search') {
+                searchControls.classList.add('active');
+                searchResultsDiv.classList.add('active');
+                searchBtn.classList.add('active');
+            } else if (tabName === 'playing') {
+                playingControls.classList.add('active');
+                tracksDiv.classList.add('active');
+                playingBtn.classList.add('active');
+            } else if (tabName === 'admin') {
+                adminDiv.classList.add('active');
+                adminBtn.classList.add('active');
+            }            
         }
 
         // Show the context menu
-        function showContextMenu(event, removeCallback, addCallback) {
+        function showContextMenu(event, track_data, trackElement, playlistId="") {
             // Remove any existing menus
             const existingMenu = document.querySelector(".dropdown-menu");
             if (existingMenu) existingMenu.remove();
@@ -557,14 +685,16 @@
             menu.style.top = `${event.pageY}px`;
 
             // Remove from playlist option
-            const removeOption = document.createElement("div");
-            removeOption.className = "menu-item";
-            removeOption.innerText = "Remove from playlist";
-            removeOption.addEventListener("click", () => {
-                removeCallback();
-                menu.remove();
-            });
-            menu.appendChild(removeOption);
+            if (playlistId !== "") {  // Only remove from playlist in a track that is in a playlist view
+                const removeOption = document.createElement("div");
+                removeOption.className = "menu-item";
+                removeOption.innerText = "Remove from playlist";
+                removeOption.addEventListener("click", () => {
+                    removeFromPlaylistCallback();
+                    menu.remove();
+                });
+                menu.appendChild(removeOption);
+             }
 
             // Static text
             const staticText = document.createElement("div");
@@ -573,13 +703,14 @@
             menu.appendChild(staticText);
 
             // Add playlist options
-            const playlists = ["Playlist 1", "Playlist 2", "Playlist 3"];
-            playlists.forEach((playlistName) => {
+            const potential_playlists = currentowner_playlists
+                .map(playlist => playlist.name);
+                potential_playlists.forEach((playlistName) => {
                 const playlistOption = document.createElement("div");
                 playlistOption.className = "menu-item";
                 playlistOption.innerText = playlistName;
                 playlistOption.addEventListener("click", () => {
-                    addCallback(playlistName);
+                    addToPlaylistCallback(playlistName);
                     menu.remove();
                 });
                 menu.appendChild(playlistOption);
@@ -598,27 +729,6 @@
             );
         }
 
-        // Functions for toggling Menu
-        function toggleMenu(buttonMenuId, event) {
-            // Close other open menus
-            document.querySelectorAll('.dropdown-menu').forEach(menu => {
-                if (menu.id !== buttonMenuId) {
-                    menu.classList.remove('show'); // Ensure you are toggling the menu itself
-                }
-            });
-
-            // Toggle the selected menu
-            const menu = document.getElementById(buttonMenuId);
-            if (menu) {
-                menu.classList.toggle('show');
-            }
-
-            // Prevent click from propagating and closing the menu immediately
-            if (event) {
-                event.stopPropagation();
-            }
-        }
-
         // Function to show the loading screen used when waiting for a new track to load
         function showLoadingScreen() {
             const loadingOverlay = document.createElement("div");
@@ -635,54 +745,221 @@
             }
         }
 
-        function getTrackAlbumArtist(track_item){
-            const maxLenght = 50; 
-            let content = "";
-            let artists = "";
-            if ('album' in track_item) {
-                content = track_item.album.name;
+        // Console stuff
+        function overwriteConsole() {
+            // Override the console.log function
+            (function() {
+                const originalConsoleLog = console.log;
+                console.log = function(...args) {
+                    // Call the original console.log function
+                    originalConsoleLog.apply(console, args);
+
+                    // Convert the arguments to a string and add them to the div
+                    const message = args.join(' ') + '<br>';
+                    consoleOutput.innerHTML += message;
+
+                    // Scroll to the bottom of the div
+                    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+                };
+            })();
+        }
+
+        // --------------------- Playback functions ---------------------
+        // --------------------- Initiate app parameters ---------------------
+        let currentTrackElement = null;
+        let playlistTracksToPlay = null;
+        let isPlayingAll = false;
+        let isRandom = false;
+
+        async function playTrack(trackElement) {
+            
+            let audioURL =  null;
+            let audioBlob = null;
+            
+            const trackData = trackElement.dataset.track_data;
+
+            console.log(`Playing track: ${trackData.name}`);
+
+            // setting as current track
+            currentTrackElement = trackElement;
+
+            // making it active, and deactivating everything else
+            const allTracks = document.querySelectorAll('.track-item');
+            allTracks.forEach(track => track.classList.remove('active'));
+            trackElement.classList.add('active');
+
+            // getting audio source
+            showLoadingScreen();
+            try {
+                audioURL = "https://samplelib.com/lib/preview/mp3/sample-3s.mp3";
+            } catch (error) {
+                console.error(`Error: ${error.message}`);
             }
-            if ('artists' in track_item && track_item.artists.length > 0) {
-                for (let i = 0; i < track_item.artists.length; i++) {
-                    let sep = "";
-                    if (artists != "") {
-                        sep = ", "
-                    }
-                    if (artists == "" || artists.lenght < 50) {
-                        artists = artists + sep + track_item.artists[i].name;
-                    }
-                    else {
-                        break;
+            hideLoadingScreen();
+
+            // if it is not in the playing tab, stop the auto-play
+            if ( trackElement.parentNode != tracksDiv) {
+                console.log('Disabling auto-play');
+                isPlayingAll = false;
+                playAllButton.classList.remove('active');
+            }  
+
+            // if everything is fine, play the track
+            if (audioURL) {
+					videoPlayer.pause();
+                    await new Promise(resolve => setTimeout(resolve, 0)); // Wait for the pause to settle
+                    videoPlayer.removeAttribute('src'); // Unload the current media
+                    videoPlayer.load(); // Reset the player
+					videoPlayer.src = audioURL;
+                    // thumbnail
+                    videoPlayer.setAttribute('poster',trackElement.dataset.thumbnail);
+                    videoPlayer.play();
+            }       
+        }
+
+        videoPlayer.addEventListener('ended', () => {
+            if (isPlayingAll) {
+                playNextSong();
+            }
+        });
+
+        function playAllCallback() {
+            if (isPlayingAll) {
+                isPlayingAll = false;
+                playAllButton.classList.remove('active');
+                // videoPlayer.pause();
+            } else {
+                isPlayingAll = true;
+                playAllButton.classList.add('active');
+                if (videoPlayer.paused && videoPlayer.src ) {
+                    if (videoPlayer.currentTime === videoPlayer.duration) {
+                        playNextSong();
+                    } else {
+                        // if video was just paused in the middle, continue
+                        videoPlayer.play;                        
                     }
                 }
+                if (videoPlayer.paused && !videoPlayer.src) {
+                    playNextSong();
+                }
             }
-            let sep2 = "";
-            if (artists != "") {
-                sep2 = " | "
-            }
-            content = content + sep2 + artists
-            return content;
         }
 
-        loadPlaylists();
-        loadSearchResults();
+        function ramdomPlayCallback() {
+            isRandom = !isRandom;
+            if (isRandom) {
+                randomPlayButton.classList.add('active');
+            } else {
+                randomPlayButton.classList.remove('active');
+            }
+        }
 
-        /*
-        function adjustListContainers() {
-            // Get all elements with the class "list-container"
-            const listContainers = document.querySelectorAll('.list-container');
-            const viewportHeight = window.innerHeight;
+        function playNextSong() {
+            if (!playlistTracksToPlay) {
+                console.log("No tracks to play");
+                return null;
+            }
+            
+            let currentSongIndex = undefined;
+            if (!currentTrackElement) {
+                currentSongIndex = 0;
+            } else { 
+                currentSongIndex = playlistTracksToPlay.indexOf(currentTrackElement);
+            }
+            
+            let nextIndex = undefined;
+            if (isRandom) {
+                const remainingIndices = playlistTracksToPlay.map((_, i) => i).filter(i => i !== currentSongIndex);
+                nextIndex = remainingIndices[Math.floor(Math.random() * remainingIndices.length)];
+            } else {
+                nextIndex = (currentSongIndex + 1) % playlistTracksToPlay.length;
+            }
+            const nextTrack = playlistTracksToPlay[nextIndex];
+            ensureVisible(nextTrack);
+            playTrack(nextTrack);
+        }
 
-            // Iterate over each element
-            listContainers.forEach(container => {
-                const containerHeight = container.childElementCount * 25;
-                container.style.maxHeight = `${containerHeight - 15}px`;
+        function ensureVisible(element) {
+            const containerRect = tracksDiv.getBoundingClientRect();
+            const elementRect = element.getBoundingClientRect();
+
+            if (elementRect.top < containerRect.top || elementRect.bottom > containerRect.bottom) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        // --------------------- Initiation calls ---------------------
+        overwriteConsole();
+        main();
+        toggleTab('playlists');
+        
+        /* Archive */
+
+        function populateDummySearchResults() {
+            // Load search results into Search tab
+            const tracks_array = Array.from({ length: 20 }, (_, i) => ({
+                name: `Track ${i + 1}`,
+                id: `${i + 1}`,
+                album: {artists:[{name: "Tu puta madre" }],
+                        images: [{ url: `https://i.scdn.co/image/ab67616d0000485138968dc90dc0ff8fc1d7b866`}]},
+                thumbnail: `https://i.scdn.co/image/ab67616d0000485138968dc90dc0ff8fc1d7b866`
+            }));
+
+			// Add tracks based on the playlist selected
+            searchResultsDiv.innerHTML = ''; // Clear previous tracks
+			searchResultsDiv.scrollTop = 0;  // Scroll to top
+			tracks_array.forEach((item, index) => {
+				// const track_data = item.track;
+                const track_data = item;
+				createTrackItem(track_data, searchResultsDiv);
+				});
+
+				// Display that view
+				toggleTab('search');
+        }
+
+        function populateDummyPlaylists() {
+            const playlists = Array.from({ length: 20 }, (_, i) => ({
+                name: `Playlist ${i + 1}`,
+                id: `${i + 1}`,
+                description: `Description for playlist ${i + 1}`,
+                images: [{ url: `https://mosaic.scdn.co/60/ab67616d00001e0233564b826ec8b117c7a05906ab67616d00001e0243eb3794977db60bced5ad16ab67616d00001e02b9ed3a94d94135ec6c3c9c2aab67616d00001e02ec244a784ef16ed95d9c665c`}],
+            }));
+            playListsDiv.innerHTML = '';
+            playlists.forEach(playlist => {
+                createPlaylistItem(null, playListsDiv, playlist)
             });
+        } 
+        
+        async function populateDummyTracks(accessToken, playlistId){
+			// Get the tracks
+			//const tracks_array = await fetchMusicAppPlaylistTracks(accessToken, playlistId);
+            const tracks_array = Array.from({ length: 20 }, (_, i) => ({
+                name: `Track ${i + 1}`,
+                id: `${i + 1}`,
+                album: {artists:[{name: "Tu puta madre" }],
+                        images: [{ url: `https://i.scdn.co/image/ab67616d0000485138968dc90dc0ff8fc1d7b866`}]},
+                thumbnail: `https://i.scdn.co/image/ab67616d0000485138968dc90dc0ff8fc1d7b866`
+            }));
+
+			// Add tracks based on the playlist selected
+            tracksDiv.innerHTML = ''; // Clear previous tracks
+			tracks_array.forEach((item, index) => {
+				// const track_data = item.track;
+                const track_data = item;
+				createTrackItem(track_data, tracksDiv);
+				});
+            
+            // restart the list of playing songs
+            playlistTracksToPlay = Array.from(tracksDiv.children);
+
+			// Display that view
+			toggleTab('playing');
+            
+            // Scroll to top. Doing it after toggling the tab as it wasn't working doing it before
+            tracksDiv.scrollTop = 0;  
         }
 
-        window.addEventListener('resize', adjustListContainers);
-        adjustListContainers();
-        */
     </script>
 </body>
 </html>
