@@ -292,7 +292,90 @@
 			to {
 				transform: rotate(360deg);
 			}
-		}        
+		}  
+
+        /* Playlist options pop up */
+        /* Fullscreen Overlay */
+        #popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(18, 18, 18, 0.9); /* Spotify-like dark overlay */
+            z-index: 1000;
+            display: flex; /* Enable Flexbox for centering */
+            justify-content: center; /* Center horizontally */
+            align-items: center;    /* Center vertically */
+        }
+
+        /* Popup Content */
+        .popup-content {
+            background: #282828; /* Spotify's dark gray */
+            border-radius: 12px;
+            padding: 20px 30px;
+            width: 400px;
+            max-width: 90%;
+            max-height: 80%;  /* Ensure the popup content is constrained within the screen height */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+            color: #fff; /* White text */
+            font-family: 'Arial', sans-serif;
+            position: relative; /* Ensure close icon is positioned relative to the popup */
+            overflow: hidden; /* Prevent content from overflowing outside */
+        }
+
+        /* Close Icon */
+        .popup-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #b3b3b3; /* Light gray for inactive state */
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .popup-close:hover {
+            color: #fff; /* White on hover */
+        }
+
+        /* Popup Title */
+        .popup-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+            color: #1db954; /* Spotify green */
+        }
+
+        /* Popup Options List */
+        .popup-options {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 300px; /* Set a max height for the scrollable area */
+            overflow-y: auto;  /* Enable vertical scrolling */
+            margin-bottom: 15px; /* Optional: Space at the bottom of the list */
+        }
+
+        .popup-options li {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background: #333; /* Slightly lighter than the popup background */
+            cursor: pointer;
+            transition: background 0.3s, transform 0.2s;
+            text-align: center;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .popup-options li:hover {
+            background: #1db954; /* Spotify green on hover */
+            color: #fff;
+            /* transform: scale(1.05); */ /* Slight zoom effect */
+        }
     </style>
 </head>
 <body>
@@ -600,7 +683,56 @@
             trackListContainer.appendChild(trackElement);
         }
 
-        async function addToPlaylistCallback (playlistName)  {
+        function selectionWindow(options, callback, originElement) {
+            // Create a new window
+            const container = document.createElement("div");
+            
+            // Create the HTML content as a string
+            const htmlContent = `
+                <div id="popup" style="display: none;">
+                <div class="popup-content">
+                    <span id="popup-close" class="popup-close">&times;</span>
+                    <h3 class="popup-title">Select an Option</h3>
+                    <ul id="popup-options" class="popup-options"></ul>
+                </div>
+                </div>
+            `;
+            // Inject the HTML into the container
+            container.innerHTML = htmlContent;
+            // Append menu to the body
+            document.body.appendChild(container);
+            const popup = document.getElementById('popup');
+            const optionsContainer = document.getElementById('popup-options');
+            const closeButton = document.getElementById('popup-close');
+
+            // Clear previous options
+            optionsContainer.innerHTML = '';
+
+            // Create list items for each option
+            options.forEach(option => {
+                const listItem = document.createElement('li');
+                listItem.textContent = option;
+
+                // Add click event to pass the selected option to the callback
+                listItem.addEventListener('click', () => {
+                    callback(option, originElement); // Call the callback with the selected value
+                    popup.style.display = 'none'; // Hide the popup
+                });
+
+                optionsContainer.appendChild(listItem);
+            });
+
+            // Show the popup
+            popup.style.display = 'flex';
+
+            // Close button functionality
+            closeButton.addEventListener('click', () => {
+                popup.style.display = 'none';
+            });
+
+        }
+
+        async function addToPlaylistCallback (playlistName, trackElement)  {
             alert(`Track added to ${playlistName}`);
         };
 
@@ -609,6 +741,7 @@
         }
 
         function getTrackAlbumArtist(track_data){
+            // extracts a comma separated list of the artists from a track object
             const maxLenght = 50; 
             let content = "";
             let artists = "";
@@ -696,25 +829,35 @@
                 menu.appendChild(removeOption);
              }
 
-            // Static text
-            const staticText = document.createElement("div");
-            staticText.className = "menu-item static";
-            staticText.innerText = "Add to playlist";
-            menu.appendChild(staticText);
+            // Add to playlist
+            const options = currentowner_playlists
+                .map(playlist => playlist.name);
+            const addToPlaylistOption = document.createElement("div");
+            addToPlaylistOption.className = "menu-item";
+            addToPlaylistOption.innerText = "Add to playlist";
+            addToPlaylistOption.addEventListener("click", () => {
+                selectionWindow(options, addToPlaylistCallback, trackElement);
+                menu.remove();
+                });
+            menu.appendChild(addToPlaylistOption);
 
             // Add playlist options
-            const potential_playlists = currentowner_playlists
-                .map(playlist => playlist.name);
-                potential_playlists.forEach((playlistName) => {
-                const playlistOption = document.createElement("div");
+            /*
+            const playlistDropdown = document.createElement("select");
+
+            currentowner_playlists.forEach((playlist) => {
+                const playlistOption = document.createElement("option");
+                playlistOption.value = playlist.id;
                 playlistOption.className = "menu-item";
-                playlistOption.innerText = playlistName;
-                playlistOption.addEventListener("click", () => {
-                    addToPlaylistCallback(playlistName);
+                playlistOption.innerText = playlist.name;
+                playlistOption.addEventListener("change", () => {
+                    addToPlaylistCallback(playlist.id);
                     menu.remove();
                 });
-                menu.appendChild(playlistOption);
+                playlistDropdown.appendChild(playlistOption);
             });
+            menu.appendChild(playlistDropdown);
+            */
 
             // Append menu to the body
             document.body.appendChild(menu);
