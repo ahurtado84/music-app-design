@@ -42,7 +42,26 @@
             Your browser does not support the video tag.
         </video>
     </div>
-    
+	
+    <!-- Audio Container with Poster -->
+<div class="audio-container">
+    <label for="audioPlayer1">Audio with controls and poster:</label><br>
+    <div style="position: relative; width: 300px; height: 200px; background: url('https://picsum.photos/id/237/300/200') no-repeat center/cover;">
+        <audio id="audioPlayer1" controls style="position: absolute; bottom: 10px; width: 100%; background-color: rgba(255,255,255,0.8);">
+            <source src="https://samplelib.com/lib/preview/mp3/sample-3s.mp3" type="audio/mpeg">
+            Your browser does not support the audio tag.
+        </audio>
+    </div>
+</div>
+
+<!-- Audio Container (Plain Controls Only) -->
+<div class="audio-container">
+    <label for="audioPlayer2">Audio with controls only:</label><br>
+    <audio id="audioPlayer2" controls>
+        <source src="https://samplelib.com/lib/preview/mp3/sample-3s.mp3" type="audio/mpeg">
+        Your browser does not support the audio tag.
+    </audio>
+</div>
 
     <script>
         window.onload = function() {
